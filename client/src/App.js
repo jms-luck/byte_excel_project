@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
-import { GoogleMap, MarkerF, InfoWindowF, useJsApiLoader } from '@react-google-maps/api';
 import './App.css';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, getDocs } from 'firebase/firestore';
@@ -17,34 +16,18 @@ import DoctorLogin from './DoctorLogin';
 import DoctorDashboard from './DoctorDashboard';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
-const DEFAULT_MAP_CENTER = { lat: 13.0827, lng: 80.2707 };
-const MAP_CONTAINER_STYLE = { width: '100%', height: '100%' };
 
 function App() {
-  const MAX_HOSPITAL_SEARCH_KM = 20;
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState('patient');
   const [hospitalName, setHospitalName] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [queueStatus, setQueueStatus] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [location, setLocation] = useState(null);
-  const [allHospitals, setAllHospitals] = useState([]);
-  const [nearbyHospitals, setNearbyHospitals] = useState([]);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState('');
-  const [searchRangeKm, setSearchRangeKm] = useState(5);
   const [registeredUsers, setRegisteredUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [selectedHospitalId, setSelectedHospitalId] = useState(null);
   const [activeAdminTab, setActiveAdminTab] = useState('dashboard');
   const [activePatients, setActivePatients] = useState([]);
-
-  const { isLoaded: isMapLoaded, loadError: mapLoadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-  });
 
   const fetchActiveQueue = useCallback(async () => {
     try {
@@ -134,190 +117,10 @@ function App() {
     localStorage.setItem('app_hospital_name', selectedHospital);
   };
 
-  const createActionHandler = (label) => () => {
-    window.alert(`${label} will open in the next release. This workflow step is now in place.`);
-  };
-
   const adminTasks = [
     { title: 'Manage Doctors', description: 'Add, remove, and manage hospital doctors.', action: () => setActiveAdminTab('doctors') },
     { title: 'Manage Appointments', description: 'Approve, reschedule, or cancel appointments.', action: () => setActiveAdminTab('appointments') },
-    { title: 'Upload Reports', description: 'Upload lab, scan, and discharge reports.', action: createActionHandler('Upload Reports') },
-    { title: 'Inventory & Beds', description: 'Track medicines, stock levels, and bed status.', action: createActionHandler('Inventory & Beds') },
   ];
-
-  const patientTasks = [
-    { title: 'Check Beds', description: 'View available beds before admission.', action: createActionHandler('Check Beds') },
-    { title: 'Book Ambulance', description: 'Request emergency or scheduled ambulance service.', action: createActionHandler('Book Ambulance') },
-    { title: 'View Doctor Availability', description: 'See doctors available by department and time.', action: createActionHandler('View Doctor Availability') },
-  ];
-
-  const sharedServices = [
-    { title: 'View Reports', description: 'Access your shared medical reports.', action: createActionHandler('View Reports') },
-    { title: 'Book Tests', description: 'Schedule lab and diagnostic tests.', action: createActionHandler('Book Tests') },
-    { title: 'Medicine Delivery', description: 'Arrange medicine delivery to your home.', action: createActionHandler('Medicine Delivery') },
-    { title: 'Medical History', description: 'Review historical visits, prescriptions, and results.', action: createActionHandler('Medical History') },
-  ];
-
-  const applyRangeFilter = useCallback((hospitals, rangeKm) => {
-    const filtered = hospitals
-      .filter((hospital) => hospital.distanceKm <= rangeKm)
-      .sort((a, b) => a.distanceKm - b.distanceKm)
-      .slice(0, 10);
-    setNearbyHospitals(filtered);
-  }, []);
-
-  const fetchNearbyHospitals = useCallback(async (lat, lon) => {
-    const rangeMeters = MAX_HOSPITAL_SEARCH_KM * 1000;
-    const query = `
-      [out:json];
-      (
-        node["amenity"="hospital"](around:${rangeMeters},${lat},${lon});
-        way["amenity"="hospital"](around:${rangeMeters},${lat},${lon});
-        relation["amenity"="hospital"](around:${rangeMeters},${lat},${lon});
-      );
-      out center tags;
-    `;
-
-    const overpassRequest = async () => {
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        },
-        body: `data=${encodeURIComponent(query)}`,
-      });
-
-      if (response.status === 429) {
-        throw new Error('RATE_LIMIT');
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch nearby hospitals.');
-      }
-
-      return response.json();
-    };
-
-    let data;
-    try {
-      data = await overpassRequest();
-    } catch (err) {
-      if (err.message === 'RATE_LIMIT') {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        data = await overpassRequest();
-      } else {
-        throw err;
-      }
-    }
-
-    const hospitals = (data.elements || [])
-      .map((element) => {
-        const latValue = element.lat || element.center?.lat;
-        const lonValue = element.lon || element.center?.lon;
-        const name = element.tags?.name || 'Unnamed Hospital';
-
-        if (!latValue || !lonValue) {
-          return null;
-        }
-
-        const distanceKm = Math.sqrt(
-          Math.pow((lat - latValue) * 111, 2) +
-          Math.pow((lon - lonValue) * 111, 2)
-        );
-
-        return {
-          id: `${element.type}-${element.id}`,
-          name,
-          lat: latValue,
-          lon: lonValue,
-          distanceKm,
-          address: element.tags?.['addr:full'] || element.tags?.['addr:street'] || 'Address not available',
-        };
-      })
-      .filter(Boolean);
-
-    setAllHospitals(hospitals);
-    applyRangeFilter(hospitals, searchRangeKm);
-  }, [MAX_HOSPITAL_SEARCH_KM, applyRangeFilter, searchRangeKm]);
-
-  useEffect(() => {
-    if (!selectedHospitalId) {
-      return;
-    }
-
-    const hospitalStillVisible = nearbyHospitals.some((hospital) => hospital.id === selectedHospitalId);
-    if (!hospitalStillVisible) {
-      setSelectedHospitalId(null);
-    }
-  }, [nearbyHospitals, selectedHospitalId]);
-
-  const handleGetCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setLocationError('Geolocation is not supported by your browser.');
-      return;
-    }
-
-    setLocationLoading(true);
-    setLocationError('');
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude;
-        const lon = position.coords.longitude;
-        setLocation({ lat, lon });
-        setAllHospitals([]);
-        setNearbyHospitals([]);
-        setLocationError('');
-
-        try {
-          await fetchNearbyHospitals(lat, lon);
-        } catch (err) {
-          setLocationError(err.message || 'Could not fetch nearby hospitals.');
-          setNearbyHospitals([]);
-        } finally {
-          setLocationLoading(false);
-        }
-      },
-      (error) => {
-        setLocationLoading(false);
-        if (error.code === 1) {
-          setLocationError('Location access denied. Please allow location permission and try again.');
-          return;
-        }
-        if (error.code === 2) {
-          setLocationError('Location unavailable. Please check device GPS/network.');
-          return;
-        }
-        setLocationError('Unable to get your current location.');
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60000,
-      }
-    );
-  }, [fetchNearbyHospitals]);
-
-  useEffect(() => {
-    if (user && !location) {
-      handleGetCurrentLocation();
-    }
-  }, [user, location, handleGetCurrentLocation]);
-
-  useEffect(() => {
-    if (!allHospitals.length) {
-      return;
-    }
-    applyRangeFilter(allHospitals, searchRangeKm);
-  }, [allHospitals, searchRangeKm, applyRangeFilter]);
-
-  const handleRangeChange = (event) => {
-    const nextRange = Number(event.target.value);
-    setSearchRangeKm(nextRange);
-    if (allHospitals.length) {
-      applyRangeFilter(allHospitals, nextRange);
-    }
-  };
 
   useEffect(() => {
     if (userRole !== 'admin') {
@@ -332,11 +135,8 @@ function App() {
         users.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
         setRegisteredUsers(users);
       } catch (err) {
-        console.warn('⚠️ Firebase users fetch failed. Falling back to mock data. Error:', err.message);
-        setRegisteredUsers([
-          { id: '1', fullName: 'John Doe', email: 'john@example.com', phoneNumber: '555-0101', age: 45, gender: 'Male', bloodGroup: 'O+', address: '123 Main St', emergencyContact: 'Jane Doe (555-0102)' },
-          { id: '2', fullName: 'Alice Smith', email: 'alice@example.com', phoneNumber: '555-0103', age: 32, gender: 'Female', bloodGroup: 'A-', address: '456 Oak Ave', emergencyContact: 'Bob Smith (555-0104)' }
-        ]);
+        console.warn('⚠️ Firebase users fetch failed:', err.message);
+        setRegisteredUsers([]);
       } finally {
         setUsersLoading(false);
       }
@@ -413,7 +213,7 @@ function App() {
             <p className="text-blue-100 mt-2">Real-time Patient Queue System with Concurrent Processing</p>
             <p className="text-blue-100 mt-1 text-sm">Signed in as: {user.email}</p>
             <p className="text-blue-100 mt-1 text-sm">
-              Role: <span className="font-bold uppercase">{isAdmin ? 'admin' : 'patient'}</span>
+              Role: <span className="font-bold uppercase">{isAdmin ? 'admin' : isDoctor ? 'doctor' : 'patient'}</span>
               {hospitalName ? ` | Hospital: ${hospitalName}` : ''}
             </p>
           </div>
@@ -636,13 +436,12 @@ function App() {
 
         {/* Info Section */}
         <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6 mt-6">
-          <h3 className="text-lg font-bold text-indigo-900 mb-3">ℹ️ Concurrent System Info</h3>
+          <h3 className="text-lg font-bold text-indigo-900 mb-3">System Connection</h3>
           <ul className="text-indigo-800 space-y-2">
-            <li>✅ Backend running on http://localhost:5000</li>
+            <li>✅ Backend target: {API_BASE_URL}</li>
             <li>✅ Frontend API target: {API_BASE_URL}</li>
-            <li>✅ Concurrent operations: 5 per interval</li>
-            <li>✅ Max concurrent limit: 10 operations</li>
-            <li>✅ Real-time updates via Socket.IO</li>
+            <li>✅ Queue store: Redis / GCP Memorystore</li>
+            <li>✅ Realtime updates: Socket.IO</li>
           </ul>
         </div>
       </main>

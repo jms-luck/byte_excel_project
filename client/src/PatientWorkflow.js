@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -12,6 +14,13 @@ const DEPARTMENTS = {
 };
 
 function PatientWorkflow({ user }) {
+  const getDefaultAppointmentDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    date.setHours(10, 0, 0, 0);
+    return date.toISOString().slice(0, 16);
+  };
+
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({ name: user?.fullName || '', age: '', symptoms: '' });
   const [triageResult, setTriageResult] = useState(null);
@@ -20,11 +29,32 @@ function PatientWorkflow({ user }) {
   const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [bookingDoctorId, setBookingDoctorId] = useState('');
+  const [appointmentDate, setAppointmentDate] = useState(getDefaultAppointmentDate);
   const [loading, setLoading] = useState(false);
 
   // Auto-fill from user
   useEffect(() => {
     if (user?.fullName) setFormData(f => ({ ...f, name: user.fullName }));
+  }, [user]);
+
+  useEffect(() => {
+    const fetchPatientProfile = async () => {
+      if (!user?.uid) return;
+      try {
+        const snapshot = await getDoc(doc(db, 'users', user.uid));
+        if (!snapshot.exists()) return;
+        const profile = snapshot.data();
+        setFormData((current) => ({
+          ...current,
+          name: current.name || profile.fullName || '',
+          age: current.age || (profile.age ? String(profile.age) : ''),
+        }));
+      } catch (err) {
+        console.warn('Could not load patient profile:', err.message);
+      }
+    };
+
+    fetchPatientProfile();
   }, [user]);
 
   useEffect(() => {
@@ -110,16 +140,17 @@ function PatientWorkflow({ user }) {
   const bookAppointment = async (doctor) => {
     setBookingDoctorId(doctor._id);
     try {
-      const appointmentDate = new Date();
-      appointmentDate.setDate(appointmentDate.getDate() + 1);
-      appointmentDate.setHours(10, 0, 0, 0);
+      if (!appointmentDate) {
+        window.alert('Please choose an appointment date and time.');
+        return;
+      }
 
-      await axios.post(`${API_BASE_URL}/api/admin/appointments`, {
+      await axios.post(`${API_BASE_URL}/api/appointments`, {
         patientId: user?.uid || user?.email || Date.now().toString(),
         patientName: formData.name || user?.displayName || user?.email || 'Patient',
         doctorId: doctor._id,
         doctorName: doctor.name,
-        date: appointmentDate.toISOString(),
+        date: new Date(appointmentDate).toISOString(),
         reason: formData.symptoms || 'Online consultation request'
       });
       window.alert(`Appointment request sent to ${doctor.name}.`);
@@ -241,6 +272,15 @@ function PatientWorkflow({ user }) {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-slate-800">Available Doctors</h3>
                   <span className="text-xs font-bold text-cyan-700 bg-cyan-50 border border-cyan-100 px-3 py-1 rounded-full">{doctorsForDisplay.length} Available</span>
+                </div>
+                <div className="mb-4 max-w-sm">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Appointment Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={appointmentDate}
+                    onChange={(event) => setAppointmentDate(event.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-slate-700 font-medium"
+                  />
                 </div>
 
                 {doctorsLoading ? (

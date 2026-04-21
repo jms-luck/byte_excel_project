@@ -109,7 +109,7 @@ function AdminDoctors() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-semibold text-slate-600 mb-1">Doctor Name</label>
-              <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Dr. John Doe" />
+              <input type="text" name="name" value={formData.name} onChange={handleInputChange} required className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Doctor name" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-600 mb-1">Department</label>

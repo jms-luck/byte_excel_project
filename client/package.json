@@ -4,7 +4,6 @@
   "description": "Frontend for Hospital Queue Management System",
   "private": true,
   "dependencies": {
-    "@react-google-maps/api": "^2.20.8",
     "axios": "^1.3.4",
     "firebase": "^10.14.1",
     "react": "^18.2.0",

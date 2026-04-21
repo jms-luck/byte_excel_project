@@ -134,6 +134,28 @@ const emitAppointmentsUpdated = async () => {
   io.emit('appointments_updated', appointments);
 };
 
+const createAppointment = async (payload) => {
+  const doctor = await Doctor.findOne({ _id: payload.doctorId, availability: true });
+  if (!doctor) {
+    const error = new Error('Selected doctor is not available');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const appointment = new Appointment({
+    patientId: payload.patientId,
+    patientName: payload.patientName,
+    doctorId: doctor._id.toString(),
+    doctorName: doctor.name,
+    date: payload.date,
+    reason: payload.reason,
+    status: 'pending',
+  });
+  await appointment.save();
+  await emitAppointmentsUpdated();
+  return appointment;
+};
+
 const assignDoctorFromDb = async (department) => {
   const normalizedDepartment = normalizeDepartment(department);
   let candidates = await Doctor.find({ availability: true, department: normalizedDepartment });
@@ -338,27 +360,33 @@ app.get('/api/admin/appointments', async (req, res) => {
   }
 });
 
-app.post('/api/admin/appointments', async (req, res) => {
+app.post('/api/appointments', async (req, res) => {
   try {
-    const doctor = await Doctor.findById(req.body.doctorId);
-    const appointment = new Appointment({
-      ...req.body,
-      doctorName: req.body.doctorName || doctor?.name
-    });
-    await appointment.save();
-    await emitAppointmentsUpdated();
+    const appointment = await createAppointment(req.body);
     res.json({ success: true, appointment });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create appointment' });
+    res.status(error.statusCode || 500).json({ error: error.message || 'Failed to create appointment' });
+  }
+});
+
+app.post('/api/admin/appointments', async (req, res) => {
+  try {
+    const appointment = await createAppointment(req.body);
+    res.json({ success: true, appointment });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message || 'Failed to create appointment' });
   }
 });
 
 app.put('/api/admin/appointments/:id', async (req, res) => {
   try {
     const { status, date } = req.body;
+    const update = {};
+    if (status) update.status = status;
+    if (date) update.date = date;
     const appointment = await Appointment.findByIdAndUpdate(
       req.params.id, 
-      { status, date }, 
+      update, 
       { new: true }
     );
     await emitAppointmentsUpdated();

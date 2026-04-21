@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
@@ -143,7 +143,7 @@ function PatientLogin({ onAuthSuccess }) {
                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Full Name *</label>
                 <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required
                   className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all font-medium"
-                  placeholder="John Doe" />
+                  placeholder="Full name" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Phone Number *</label>
