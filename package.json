@@ -6,15 +6,16 @@
   "scripts": {
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
     "start": "npm run start:concurrent",
-    "start:concurrent": "concurrently npm:server:concurrent npm:client:start",
-    "start:dev": "concurrently npm:server:dev npm:client:start",
+    "prestart:concurrent": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$ports = @(5000, 3001); foreach ($port in $ports) { $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue; if ($connections) { $pids = $connections | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($procId in $pids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue; Write-Host ('Freed port ' + $port + ' by stopping PID ' + $procId); } } else { Write-Host ('Port ' + $port + ' is free'); } }\"",
+    "start:concurrent": "concurrently --restart-tries 5 --restart-after 2000 npm:server:concurrent npm:client:start",
+    "start:dev": "concurrently --restart-tries 5 --restart-after 2000 npm:server:dev npm:client:start",
     "docker:up": "docker-compose up --build",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "server:start": "cd server && npm start",
     "server:dev": "cd server && npm run dev",
-    "server:concurrent": "cd server && node server-concurrent.js",
-    "client:start": "cd client && npm start",
+    "server:concurrent": "cd server && node server.js",
+    "client:start": "cd client && set PORT=3001 && npm start",
     "client:build": "cd client && npm run build"
   },
   "devDependencies": {

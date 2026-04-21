@@ -30,7 +30,13 @@ const MAX_CONCURRENT = 10;
 // MongoDB Connection (async)
 const connectMongoDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URI, {
+    const mongoUri = (process.env.MONGO_URI || '').trim();
+    if (!mongoUri) {
+      console.error('❌ MongoDB connection skipped: MONGO_URI is not configured');
+      return;
+    }
+
+    await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
@@ -42,22 +48,28 @@ const connectMongoDB = async () => {
 
 // Redis Connection (async)
 const connectRedis = async () => {
-  return new Promise((resolve, reject) => {
-    const redisClient = redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT
-    });
-
-    redisClient.on('connect', () => {
-      console.log('✅ Redis connected');
-      resolve(redisClient);
-    });
-
-    redisClient.on('error', (err) => {
-      console.error('❌ Redis connection error:', err.message);
-      reject(err);
-    });
+  const host = process.env.REDIS_HOST || '127.0.0.1';
+  const port = process.env.REDIS_PORT || '6379';
+  const client = redis.createClient({
+    url: `redis://${host}:${port}`,
+    socket: {
+      connectTimeout: 3000,
+      reconnectStrategy: () => false,
+    },
   });
+
+  client.on('error', (err) => {
+    console.error('❌ Redis connection error:', err.message);
+  });
+
+  try {
+    await client.connect();
+    console.log('✅ Redis connected');
+    return client;
+  } catch (err) {
+    console.error('⚠️ Redis unavailable, continuing without Redis:', err.message);
+    return null;
+  }
 };
 
 // Concurrent Queue Processing

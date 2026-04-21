@@ -1,182 +1,305 @@
-# 🏥 Government Hospital Queue Management System
+# 🏥 Government Hospital Queue Management System (Advanced Workflow)
 
-A scalable and real-time queue management system designed for government hospitals to reduce waiting time, manage patient flow efficiently, and improve overall service quality.
+This project implements a **real-world hospital queue system** using:
 
----
-
-## 🚀 Tech Stack
-
-* **Frontend:** React, Tailwind CSS
-* **Backend:** Node.js, Express.js
-* **Queue System:** Redis
-* **Database:** MongoDB
-* **Real-Time:** Socket.IO
-* **Authentication:** JWT
-* **Deployment:** Docker / Azure / AWS
+* Triage-based priority
+* Per-doctor queues
+* Multi-department routing
+* Real-time updates
 
 ---
 
-## 📌 Features
+# 🚀 Tech Stack
 
-* 🎟️ Token Generation System
-* ⏱️ Real-time Queue Updates
-* 🧑‍⚕️ Doctor Dashboard
-* 👤 Patient Dashboard
-* 🚨 Priority Queue (Emergency Handling)
-* 📊 Admin Analytics Dashboard
-* 🔔 Live Notifications
+* Frontend: React
+* Backend: Node.js + Express
+* Queue Engine: Redis (Sorted Sets)
+* Database: MongoDB
+* Real-time: Socket.IO
 
 ---
 
-## 📂 Project Structure
+# 🧠 System Overview
 
-```
-hospital-queue-system/
-│── client/          # React Frontend
-│── server/          # Node.js Backend
-│── redis/           # Queue logic (optional configs)
-│── docs/            # Documentation
-│── docker-compose.yml
-│── README.md
+The system follows **real hospital workflow**:
+
+```text
+Triage → Department → Doctor Queue → Consultation → Lab/Pharmacy → Exit
 ```
 
 ---
 
-## ⚙️ Installation & Setup
+# ⚙️ Step-by-Step Execution Flow
 
-### 1️⃣ Clone the Repository
+---
+
+## 🟢 STEP 1: Patient Entry
+
+* Patient logs in / registers
+* Provides symptoms
+
+```text
+Input:
+- Name
+- Age
+- Symptoms
+```
+
+---
+
+## 🚨 STEP 2: Triage (Priority Assignment)
+
+Assign priority based on condition:
+
+| Condition | Priority |
+| --------- | -------- |
+| Emergency | 1        |
+| Urgent    | 2        |
+| Normal    | 3        |
+
+```javascript
+const getPriority = (type) => {
+  if (type === "emergency") return 1;
+  if (type === "urgent") return 2;
+  return 3;
+};
+```
+
+---
+
+## 🏥 STEP 3: Department Routing
+
+Patient is routed to department:
+
+| Symptoms     | Department |
+| ------------ | ---------- |
+| Heart issues | Cardiology |
+| Fever        | General    |
+| Injury       | Orthopedic |
+
+```javascript
+const getDepartment = (symptom) => {
+  if (symptom.includes("heart")) return "cardiology";
+  if (symptom.includes("fever")) return "general";
+  return "general";
+};
+```
+
+---
+
+## 👨‍⚕️ STEP 4: Doctor Assignment
+
+Assign doctor with **least queue load**:
+
+```javascript
+const assignDoctor = async (doctors) => {
+  let bestDoctor = null;
+  let minQueue = Infinity;
+
+  for (let doc of doctors) {
+    const len = await redis.zcard(`queue:doctor:${doc}`);
+    if (len < minQueue) {
+      minQueue = len;
+      bestDoctor = doc;
+    }
+  }
+  return bestDoctor;
+};
+```
+
+---
+
+## 🎟️ STEP 5: Token Generation
+
+```javascript
+const token = await redis.incr("token:counter");
+```
+
+---
+
+## ➕ STEP 6: Add Patient to Doctor Queue
+
+```javascript
+const addToQueue = async (doctorId, patient, priority) => {
+  const key = `queue:doctor:${doctorId}`;
+  const timestamp = Date.now();
+
+  const score = priority * 1e13 + timestamp;
+
+  const data = JSON.stringify({
+    token: patient.token,
+    patientId: patient.id,
+    priority,
+    doctorId,
+    time: timestamp
+  });
+
+  await redis.zadd(key, score, data);
+};
+```
+
+---
+
+## 🔄 STEP 7: Real-Time Queue Update
+
+Using Socket.IO:
+
+```javascript
+io.emit("queue_update", {
+  doctorId,
+  queueLength: await redis.zcard(`queue:doctor:${doctorId}`)
+});
+```
+
+---
+
+## 🧑‍⚕️ STEP 8: Doctor Calls Next Patient
+
+```javascript
+const getNextPatient = async (doctorId) => {
+  const result = await redis.zpopmin(`queue:doctor:${doctorId}`);
+
+  if (!result.length) return null;
+
+  return JSON.parse(result[0].value);
+};
+```
+
+---
+
+## 🚨 STEP 9: Emergency Override
+
+Emergency queue:
 
 ```bash
-git clone https://github.com/your-username/hospital-queue-system.git
-cd hospital-queue-system
+queue:emergency
+```
+
+Doctor checks:
+
+```javascript
+let patient = await redis.zpopmin("queue:emergency");
+
+if (!patient) {
+  patient = await redis.zpopmin(`queue:doctor:${doctorId}`);
+}
 ```
 
 ---
 
-### 2️⃣ Setup Backend
+## 🧪 STEP 10: Post Consultation Routing
+
+After doctor:
+
+* Lab Queue
+* Pharmacy Queue
 
 ```bash
-cd server
-npm install
-```
-
-Create a `.env` file:
-
-```
-PORT=5000
-MONGO_URI=your_mongodb_connection
-JWT_SECRET=your_secret_key
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-```
-
-Run backend:
-
-```bash
-npm start
+queue:lab
+queue:pharmacy
 ```
 
 ---
 
-### 3️⃣ Setup Frontend
+## 💊 STEP 11: Lab / Pharmacy Handling
 
-```bash
-cd client
-npm install
-npm start
-```
+Same queue logic applies:
 
-Frontend will run on:
-
-```
-http://localhost:3000
+```javascript
+await redis.zadd("queue:lab", score, patientData);
+await redis.zpopmin("queue:lab");
 ```
 
 ---
 
-### 4️⃣ Setup Redis
+## 📄 STEP 12: Store Patient History
 
-Make sure Redis is installed and running:
+Store in MongoDB:
 
-```bash
-redis-server
+```javascript
+await PatientHistory.create({
+  patientId,
+  doctorId,
+  diagnosis,
+  prescription
+});
 ```
 
 ---
 
-### 5️⃣ Setup MongoDB
+## ⏱️ STEP 13: Waiting Time Calculation
 
-* Install MongoDB locally OR
-* Use MongoDB Atlas
-
----
-
-## 🔄 How It Works (Step-by-Step Flow)
-
-1. Patient registers/logs in
-2. Patient requests a token
-3. Backend stores patient data in MongoDB
-4. Token is added to Redis Queue
-5. Doctor dashboard fetches next token
-6. System updates queue in real-time using Socket.IO
-7. Patient receives live updates on their position
-
----
-
-## 🔌 API Endpoints (Sample)
-
-### Auth
-
-* `POST /api/auth/register`
-* `POST /api/auth/login`
-
-### Queue
-
-* `POST /api/queue/token`
-* `GET /api/queue/status`
-* `POST /api/queue/next`
-
-### Doctor
-
-* `GET /api/doctor/dashboard`
-
----
-
-## 🧠 Future Enhancements
-
-* AI-based waiting time prediction
-* Face recognition for patient check-in
-* SMS/WhatsApp notifications
-* Multi-language support
-* Integration with government health systems
-
----
-
-## 🐳 Docker Setup (Optional)
-
-```bash
-docker-compose up --build
+```javascript
+waitingTime = position * avgConsultTime;
 ```
 
 ---
 
-## 📸 Screenshots (Add Later)
+## 🔚 STEP 14: Exit Flow
 
-* Patient Dashboard
-* Doctor Panel
-* Admin Analytics
+* Patient receives:
 
----
-
-## 🤝 Contributing
-
-Pull requests are welcome. For major changes, please open an issue first.
+  * Prescription
+  * Reports
+  * Medicine
 
 ---
 
-## 📄 License
+# 🔁 Complete Flow
 
-This project is licensed under the MIT License.
+```text
+Patient Login
+   ↓
+Triage (priority assigned)
+   ↓
+Department Routing
+   ↓
+Doctor Assignment
+   ↓
+Token Generated
+   ↓
+Added to Doctor Queue (Redis)
+   ↓
+Doctor Calls Next Patient
+   ↓
+Consultation
+   ↓
+Lab / Pharmacy Queue (if needed)
+   ↓
+History Stored (MongoDB)
+   ↓
+Exit
+```
+
+---
+
+# 🏗️ Queue Types Used
+
+| Queue           | Purpose             |
+| --------------- | ------------------- |
+| queue:doctor:id | Doctor consultation |
+| queue:emergency | Emergency override  |
+| queue:lab       | Lab tests           |
+| queue:pharmacy  | Medicine            |
+
+---
+
+# 🏆 Best Practices
+
+* ✅ Use Redis Sorted Sets for priority queues
+* ✅ Separate queue per doctor
+* ✅ Use emergency override
+* ✅ Use MongoDB for history
+* ✅ Use Socket.IO for live updates
+
+---
+
+# ⚡ Summary
+
+* Multi-queue system → Real hospital model
+* Priority-based queue → Efficient handling
+* Real-time updates → Better UX
+* Scalable architecture → Production ready
 
 ---
 
