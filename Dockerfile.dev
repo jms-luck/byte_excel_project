@@ -1,0 +1,27 @@
+# Hospital Queue Management System
+# Dockerfile for development environment
+
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy all package.json files
+COPY server/package.json server/package-lock.json ./server/
+COPY client/package.json client/package-lock.json ./client/
+
+# Install all dependencies
+RUN cd server && npm install && \
+    cd ../client && npm install && \
+    cd ..
+
+# Copy all source files
+COPY . .
+
+# Expose ports
+EXPOSE 5000 3000
+
+# Install development tools
+RUN npm install -g nodemon
+
+# Start script (you can modify this)
+CMD ["sh", "-c", "cd server && npm start & cd client && npm start"]

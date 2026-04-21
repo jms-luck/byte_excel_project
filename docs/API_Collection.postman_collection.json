@@ -1,0 +1,159 @@
+{
+  "info": {
+    "name": "Hospital Queue Management API",
+    "description": "API Collection for Hospital Queue Management System",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health",
+          "host": ["{{base_url}}"],
+          "path": ["api", "health"]
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"John Doe\", \"email\": \"john@example.com\", \"password\": \"password123\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"john@example.com\", \"password\": \"password123\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Queue",
+      "item": [
+        {
+          "name": "Get Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"patientId\": \"123\"}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/queue/token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "queue", "token"]
+            }
+          }
+        },
+        {
+          "name": "Queue Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/queue/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "queue", "status"]
+            }
+          }
+        },
+        {
+          "name": "Next Patient",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/queue/next",
+              "host": ["{{base_url}}"],
+              "path": ["api", "queue", "next"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Doctor",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/doctor/dashboard",
+              "host": ["{{base_url}}"],
+              "path": ["api", "doctor", "dashboard"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}

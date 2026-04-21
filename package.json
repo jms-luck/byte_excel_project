@@ -1,0 +1,34 @@
+{
+  "name": "hospital-queue-system",
+  "version": "1.0.0",
+  "description": "Hospital Queue Management System - Full Stack Application",
+  "private": true,
+  "scripts": {
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "start": "npm run start:concurrent",
+    "start:concurrent": "concurrently npm:server:concurrent npm:client:start",
+    "start:dev": "concurrently npm:server:dev npm:client:start",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "server:start": "cd server && npm start",
+    "server:dev": "cd server && npm run dev",
+    "server:concurrent": "cd server && node server-concurrent.js",
+    "client:start": "cd client && npm start",
+    "client:build": "cd client && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "keywords": [
+    "hospital",
+    "queue",
+    "management",
+    "concurrent"
+  ],
+  "author": "Meenachi Sundaresan",
+  "license": "MIT",
+  "dependencies": {
+    "firebase": "^12.12.1"
+  }
+}

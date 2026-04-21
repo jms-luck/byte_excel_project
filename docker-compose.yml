@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: hospital-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: hospital-queue
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: hospital-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: hospital-backend
+    environment:
+      PORT: 5000
+      MONGO_URI: mongodb://mongodb:27017/hospital-queue
+      JWT_SECRET: your_secret_key_change_this_in_production
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - hospital-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: hospital-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - hospital-network
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: http://localhost:5000
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  hospital-network:
+    driver: bridge
